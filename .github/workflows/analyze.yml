@@ -8,6 +8,9 @@ on:
     - cron: '0 9 * * 1-5'
   workflow_dispatch:  # 수동 실행
 
+permissions:
+  contents: write
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
