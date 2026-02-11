@@ -227,11 +227,15 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    max-width: 200px;
   }
 
   .stock-name {
     font-weight: 500;
     font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .stock-ticker {
