@@ -1,4 +1,4 @@
-name: 🚀 급등주 예측기 자동 분석
+name: 급등주 예측기 v3 자동 분석
 
 on:
   schedule:
@@ -13,27 +13,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 코드 체크아웃
+      - name: 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: 🐍 Python 설정
+      - name: Python 설정
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 📦 패키지 설치
-        run: pip install yfinance pandas numpy requests feedparser
+      - name: 패키지 설치
+        run: pip install yfinance pandas numpy requests lxml
 
-      - name: 📊 급등주 분석 실행
+      - name: 급등주 분석 실행
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python analyzer.py
+        timeout-minutes: 20
 
-      - name: 📤 대시보드 데이터 커밋
+      - name: 대시보드 데이터 커밋
         run: |
           git config user.name "Surge Bot"
           git config user.email "bot@surge-predictor"
           git add data/
-          git diff --staged --quiet || git commit -m "📊 분석 업데이트 $(date +'%Y-%m-%d %H:%M')"
+          git diff --staged --quiet || git commit -m "분석 업데이트 $(date +'%Y-%m-%d %H:%M')"
           git push

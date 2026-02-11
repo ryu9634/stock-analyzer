@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🚀 급등주 예측기 대시보드</title>
+<title>급등주 예측기 v3 - Low Cap US Stocks</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -43,7 +43,7 @@
   }
 
   .header-inner {
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
@@ -58,6 +58,12 @@
     background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+
+  .header-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
   }
 
   .header-meta {
@@ -82,15 +88,14 @@
   }
 
   .container {
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 24px;
   }
 
-  /* Summary Cards */
   .summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
   }
@@ -123,7 +128,6 @@
     margin-top: 4px;
   }
 
-  /* Filters */
   .filters {
     display: flex;
     gap: 8px;
@@ -164,7 +168,6 @@
 
   .search-box:focus { border-color: var(--accent); }
 
-  /* Stock Table */
   .table-wrap {
     background: var(--card);
     border: 1px solid var(--border);
@@ -180,11 +183,11 @@
 
   thead th {
     background: #0f172a;
-    padding: 14px 16px;
+    padding: 14px 12px;
     text-align: left;
     font-weight: 500;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     position: sticky;
@@ -205,7 +208,7 @@
   tbody tr:hover { background: var(--card-hover); }
 
   td {
-    padding: 12px 16px;
+    padding: 10px 12px;
     white-space: nowrap;
   }
 
@@ -213,7 +216,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
     color: var(--text-dim);
-    width: 40px;
+    width: 36px;
   }
 
   .rank-1 { color: #fbbf24; }
@@ -228,7 +231,7 @@
 
   .stock-name {
     font-weight: 500;
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .stock-ticker {
@@ -236,8 +239,6 @@
     font-size: 11px;
     color: var(--text-dim);
   }
-
-  .flag { margin-right: 4px; }
 
   .score-cell {
     font-family: 'JetBrains Mono', monospace;
@@ -252,7 +253,7 @@
   }
 
   .score-bar {
-    width: 60px;
+    width: 50px;
     height: 6px;
     background: #1e293b;
     border-radius: 3px;
@@ -280,7 +281,7 @@
 
   .return-cell {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .positive { color: var(--green); }
@@ -296,23 +297,27 @@
   .vol-high { background: rgba(245,158,11,0.15); color: #fbbf24; }
   .vol-normal { color: var(--text-dim); }
 
-  /* Sub scores */
   .sub-scores {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     font-size: 11px;
   }
 
   .sub-score {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
   }
 
   .sub-score-label { color: var(--text-dim); }
   .sub-score-val { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
 
-  /* Detail Modal */
+  .mcap-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--cyan);
+  }
+
   .modal-overlay {
     display: none;
     position: fixed;
@@ -330,9 +335,9 @@
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 16px;
-    max-width: 600px;
+    max-width: 700px;
     width: 100%;
-    max-height: 80vh;
+    max-height: 85vh;
     overflow-y: auto;
     padding: 28px;
   }
@@ -368,7 +373,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: 6px 0;
     border-bottom: 1px solid rgba(255,255,255,0.03);
   }
 
@@ -380,7 +385,7 @@
   }
 
   .detail-item-val {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-dim);
     margin-left: 8px;
   }
@@ -399,7 +404,6 @@
     border-radius: 2px;
   }
 
-  /* Loading */
   .loading {
     text-align: center;
     padding: 80px 20px;
@@ -424,7 +428,6 @@
     color: var(--text-dim);
   }
 
-  /* Responsive */
   @media (max-width: 768px) {
     .container { padding: 12px; }
     .header { padding: 16px; }
@@ -433,8 +436,9 @@
     .summary-card { padding: 14px; }
     .summary-card .value { font-size: 22px; }
     table { font-size: 12px; }
-    td, thead th { padding: 8px 10px; }
+    td, thead th { padding: 8px 6px; }
     .sub-scores { display: none; }
+    .hide-mobile { display: none; }
   }
 </style>
 </head>
@@ -442,7 +446,10 @@
 
 <div class="header">
   <div class="header-inner">
-    <h1>🔍 급등 예측기 v2 — Pre-Surge Detector</h1>
+    <div>
+      <h1>급등 예측기 v3 - Pre-Surge Detector</h1>
+      <div class="header-sub">미국 소형주 (시총 &lt; $2B) | 변동성 + 매집 + 차트패턴 + 기술분석</div>
+    </div>
     <div class="header-meta">
       <span><span class="status-dot"></span> 자동 업데이트</span>
       <span id="updateTime">로딩 중...</span>
@@ -451,64 +458,63 @@
 </div>
 
 <div class="container">
-  <!-- Summary -->
   <div class="summary-grid" id="summaryGrid">
     <div class="summary-card">
       <div class="label">분석 종목</div>
       <div class="value" id="totalCount">-</div>
-      <div class="sub" id="marketBreakdown">-</div>
+      <div class="sub" id="universeSize">-</div>
     </div>
     <div class="summary-card">
-      <div class="label">🔴 급등 임박</div>
+      <div class="label">급등 임박</div>
       <div class="value" id="strongBuy" style="color: #f87171">-</div>
       <div class="sub">점수 78+</div>
     </div>
     <div class="summary-card">
-      <div class="label">🟠 매집 진행</div>
+      <div class="label">매집 진행</div>
       <div class="value" id="buyCount" style="color: #fbbf24">-</div>
       <div class="sub">점수 68-77</div>
     </div>
     <div class="summary-card">
-      <div class="label">🇺🇸 미국 평균</div>
-      <div class="value" id="usAvg" style="color: #60a5fa">-</div>
-      <div class="sub">점</div>
+      <div class="label">Low Float</div>
+      <div class="value" id="lowFloatCount" style="color: #22d3ee">-</div>
+      <div class="sub">유동비율 &lt; 50%</div>
     </div>
     <div class="summary-card">
-      <div class="label">🇰🇷 한국 평균</div>
-      <div class="value" id="krAvg" style="color: #a78bfa">-</div>
-      <div class="sub">점</div>
+      <div class="label">고변동성</div>
+      <div class="value" id="highVolCount" style="color: #a78bfa">-</div>
+      <div class="sub">변동성 70+</div>
     </div>
   </div>
 
-  <!-- Filters -->
   <div class="filters">
     <button class="filter-btn active" data-filter="all">전체</button>
-    <button class="filter-btn" data-filter="US">🇺🇸 미국</button>
-    <button class="filter-btn" data-filter="KR">🇰🇷 한국</button>
-    <button class="filter-btn" data-filter="strong">🔴 급등임박</button>
-    <button class="filter-btn" data-filter="buy">🟠 매집진행</button>
-    <button class="filter-btn" data-filter="volume">⚡ 거래량급증</button>
+    <button class="filter-btn" data-filter="strong">급등임박</button>
+    <button class="filter-btn" data-filter="buy">매집진행</button>
+    <button class="filter-btn" data-filter="volume">거래량급증</button>
+    <button class="filter-btn" data-filter="lowfloat">Low Float</button>
+    <button class="filter-btn" data-filter="highvol">고변동성</button>
+    <button class="filter-btn" data-filter="microcap">Micro Cap</button>
     <input type="text" class="search-box" id="searchBox" placeholder="종목명 / 티커 검색...">
   </div>
 
-  <!-- Table -->
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
           <th data-sort="rank">#</th>
           <th data-sort="name">종목</th>
+          <th data-sort="market_cap">시총</th>
           <th data-sort="total_score">종합점수</th>
           <th data-sort="signal">시그널</th>
-          <th>세부 (매집/패턴/기술)</th>
-          <th data-sort="return_1d">1일</th>
-          <th data-sort="return_5d">5일</th>
-          <th data-sort="return_20d">20일</th>
+          <th>세부 (Vol/Acc/Pat/Tech)</th>
+          <th data-sort="return_1d" class="hide-mobile">1일</th>
+          <th data-sort="return_5d" class="hide-mobile">5일</th>
+          <th data-sort="return_20d" class="hide-mobile">20일</th>
           <th data-sort="volume_ratio">거래량</th>
         </tr>
       </thead>
       <tbody id="stockTable">
-        <tr><td colspan="9" class="loading">
+        <tr><td colspan="10" class="loading">
           <div class="loading-spinner"></div>
           데이터 로딩 중...
         </td></tr>
@@ -517,28 +523,28 @@
   </div>
 </div>
 
-<!-- Detail Modal -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal" id="modalContent"></div>
 </div>
 
-<!-- data/analysis.js 로드 (로컬 file:// 에서도 동작) -->
 <script src="data/analysis.js"></script>
 <script>
 let allStocks = [];
 let currentFilter = 'all';
 let currentSort = { key: 'total_score', desc: true };
 
-// 데이터 로드 (JS 전역변수 우선 → fetch 폴백)
+function escapeHtml(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
 async function loadData() {
-  // 1) script 태그로 로드된 전역변수 확인
   if (typeof STOCK_DATA !== 'undefined' && STOCK_DATA && STOCK_DATA.stocks) {
-    console.log('✅ data/analysis.js에서 로드 성공');
     renderDashboard(STOCK_DATA);
     return;
   }
-
-  // 2) fetch 시도 (GitHub Pages 등 서버 환경)
   const paths = ['./data/analysis.json', 'data/analysis.json'];
   for (const path of paths) {
     try {
@@ -546,37 +552,28 @@ async function loadData() {
       if (!resp.ok) continue;
       const data = await resp.json();
       if (data && data.stocks) {
-        console.log('✅ fetch 로드 성공:', path);
         renderDashboard(data);
         return;
       }
     } catch (e) {
-      console.log('⚠️ fetch 실패:', path, e.message);
+      console.log('fetch failed:', path, e.message);
     }
   }
-
-  // 3) 모두 실패
   document.getElementById('stockTable').innerHTML =
-    `<tr><td colspan="9" class="empty-state">
-      📂 데이터 파일을 찾을 수 없습니다.<br><br>
-      <b>해결:</b> <code>python analyzer.py</code> 실행 후 새로고침
-    </td></tr>`;
+    '<tr><td colspan="10" class="empty-state">데이터 파일을 찾을 수 없습니다.<br><br><b>해결:</b> <code>python analyzer.py</code> 실행 후 새로고침</td></tr>';
   document.getElementById('updateTime').textContent = '데이터 없음';
 }
 
 function renderDashboard(data) {
   const { summary, stocks } = data;
   allStocks = stocks;
-
-  // Summary
   document.getElementById('totalCount').textContent = summary.total_analyzed;
-  document.getElementById('marketBreakdown').textContent = `🇺🇸 ${summary.us_count} / 🇰🇷 ${summary.kr_count}`;
+  document.getElementById('universeSize').textContent = summary.total_universe ? ('/' + summary.total_universe + ' 유니버스') : '';
   document.getElementById('strongBuy').textContent = summary.surge_imminent;
   document.getElementById('buyCount').textContent = summary.accumulating;
-  document.getElementById('usAvg').textContent = summary.us_avg;
-  document.getElementById('krAvg').textContent = summary.kr_avg;
+  document.getElementById('lowFloatCount').textContent = summary.low_float_count || 0;
+  document.getElementById('highVolCount').textContent = summary.high_vol_count || 0;
   document.getElementById('updateTime').textContent = summary.updated_at;
-
   renderTable(stocks);
 }
 
@@ -596,32 +593,32 @@ function getSignalClass(signal) {
 }
 
 function formatReturn(val) {
+  if (val == null) return '<span class="return-cell" style="color:var(--text-dim)">-</span>';
   const cls = val >= 0 ? 'positive' : 'negative';
-  return `<span class="${cls}">${val >= 0 ? '+' : ''}${val.toFixed(1)}%</span>`;
+  return '<span class="' + cls + '">' + (val >= 0 ? '+' : '') + val.toFixed(1) + '%</span>';
 }
 
 function renderTable(stocks) {
   let filtered = stocks;
   const search = document.getElementById('searchBox').value.toLowerCase();
 
-  // Filter
-  if (currentFilter === 'US') filtered = filtered.filter(s => s.market === 'US');
-  else if (currentFilter === 'KR') filtered = filtered.filter(s => s.market === 'KR');
-  else if (currentFilter === 'strong') filtered = filtered.filter(s => s.total_score >= 78);
-  else if (currentFilter === 'buy') filtered = filtered.filter(s => s.total_score >= 68 && s.total_score < 78);
-  else if (currentFilter === 'volume') filtered = filtered.filter(s => s.volume_ratio >= 1.5);
+  if (currentFilter === 'strong') filtered = filtered.filter(function(s) { return s.total_score >= 78; });
+  else if (currentFilter === 'buy') filtered = filtered.filter(function(s) { return s.total_score >= 68 && s.total_score < 78; });
+  else if (currentFilter === 'volume') filtered = filtered.filter(function(s) { return s.volume_ratio >= 1.5; });
+  else if (currentFilter === 'lowfloat') filtered = filtered.filter(function(s) { return s.float_ratio != null && s.float_ratio < 0.5; });
+  else if (currentFilter === 'highvol') filtered = filtered.filter(function(s) { return s.volatility_score != null && s.volatility_score >= 70; });
+  else if (currentFilter === 'microcap') filtered = filtered.filter(function(s) { return s.market_cap != null && s.market_cap < 300000000; });
 
-  // Search
   if (search) {
-    filtered = filtered.filter(s =>
-      s.name.toLowerCase().includes(search) ||
-      s.ticker.toLowerCase().includes(search)
-    );
+    filtered = filtered.filter(function(s) {
+      return s.name.toLowerCase().includes(search) || s.ticker.toLowerCase().includes(search);
+    });
   }
 
-  // Sort
-  filtered.sort((a, b) => {
-    let va = a[currentSort.key], vb = b[currentSort.key];
+  filtered.sort(function(a, b) {
+    var va = a[currentSort.key], vb = b[currentSort.key];
+    if (va == null) va = -Infinity;
+    if (vb == null) vb = -Infinity;
     if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
     if (va < vb) return currentSort.desc ? 1 : -1;
     if (va > vb) return currentSort.desc ? -1 : 1;
@@ -630,134 +627,151 @@ function renderTable(stocks) {
 
   if (filtered.length === 0) {
     document.getElementById('stockTable').innerHTML =
-      '<tr><td colspan="9" class="empty-state">해당하는 종목이 없습니다.</td></tr>';
+      '<tr><td colspan="10" class="empty-state">해당하는 종목이 없습니다.</td></tr>';
     return;
   }
 
-  const html = filtered.map((s, i) => {
-    const rank = i + 1;
-    const flag = s.market === 'KR' ? '🇰🇷' : '🇺🇸';
-    const ticker = s.ticker.replace('.KS', '').replace('.KQ', '');
-    const rankClass = rank <= 3 ? `rank-${rank}` : '';
-    const scoreColor = getScoreColor(s.total_score);
-    const pct = Math.min(100, s.total_score);
-    const volClass = s.volume_ratio >= 1.5 ? 'vol-high' : 'vol-normal';
+  var html = filtered.map(function(s, i) {
+    var rank = i + 1;
+    var rankClass = rank <= 3 ? 'rank-' + rank : '';
+    var scoreColor = getScoreColor(s.total_score);
+    var pct = Math.min(100, s.total_score);
+    var volClass = s.volume_ratio >= 1.5 ? 'vol-high' : 'vol-normal';
+    var volScore = s.volatility_score || 0;
+    var accScore = s.accum_score || 0;
 
-    return `<tr onclick="showDetail('${s.ticker}')" style="cursor:pointer">
-      <td class="rank ${rankClass}">${rank}</td>
-      <td>
-        <div class="stock-info">
-          <span class="stock-name"><span class="flag">${flag}</span>${s.name}</span>
-          <span class="stock-ticker">${ticker}</span>
-        </div>
-      </td>
-      <td>
-        <div class="score-bar-container">
-          <span class="score-cell" style="color:${scoreColor}">${s.total_score}</span>
-          <div class="score-bar">
-            <div class="score-bar-fill" style="width:${pct}%;background:${scoreColor}"></div>
-          </div>
-        </div>
-      </td>
-      <td><span class="signal-badge ${getSignalClass(s.signal)}">${s.signal}</span></td>
-      <td>
-        <div class="sub-scores">
-          <div class="sub-score"><span class="sub-score-label">매집</span><span class="sub-score-val" style="color:${getScoreColor(s.accum_score || 0)}">${s.accum_score || '-'}</span></div>
-          <div class="sub-score"><span class="sub-score-label">패턴</span><span class="sub-score-val" style="color:${getScoreColor(s.pattern_score)}">${s.pattern_score}</span></div>
-          <div class="sub-score"><span class="sub-score-label">기술</span><span class="sub-score-val" style="color:${getScoreColor(s.tech_score)}">${s.tech_score}</span></div>
-        </div>
-        ${(s.flags && s.flags.length > 0) ? '<div style="font-size:10px;margin-top:3px;color:#fbbf24">' + s.flags[0] + '</div>' : ''}
-      </td>
-      <td class="return-cell">${formatReturn(s.return_1d)}</td>
-      <td class="return-cell">${formatReturn(s.return_5d)}</td>
-      <td class="return-cell">${formatReturn(s.return_20d)}</td>
-      <td><span class="vol-badge ${volClass}">${s.volume_ratio}x</span></td>
-    </tr>`;
+    return '<tr onclick="showDetail(\'' + escapeHtml(s.ticker) + '\')" style="cursor:pointer">' +
+      '<td class="rank ' + rankClass + '">' + rank + '</td>' +
+      '<td>' +
+        '<div class="stock-info">' +
+          '<span class="stock-name">' + escapeHtml(s.name) + '</span>' +
+          '<span class="stock-ticker">' + escapeHtml(s.ticker) + '</span>' +
+        '</div>' +
+      '</td>' +
+      '<td class="mcap-cell">' + escapeHtml(s.market_cap_fmt || 'N/A') + '</td>' +
+      '<td>' +
+        '<div class="score-bar-container">' +
+          '<span class="score-cell" style="color:' + scoreColor + '">' + s.total_score + '</span>' +
+          '<div class="score-bar">' +
+            '<div class="score-bar-fill" style="width:' + pct + '%;background:' + scoreColor + '"></div>' +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td><span class="signal-badge ' + getSignalClass(s.signal) + '">' + escapeHtml(s.signal) + '</span></td>' +
+      '<td>' +
+        '<div class="sub-scores">' +
+          '<div class="sub-score"><span class="sub-score-label">V</span><span class="sub-score-val" style="color:' + getScoreColor(volScore) + '">' + (s.volatility_score || '-') + '</span></div>' +
+          '<div class="sub-score"><span class="sub-score-label">A</span><span class="sub-score-val" style="color:' + getScoreColor(accScore) + '">' + (s.accum_score || '-') + '</span></div>' +
+          '<div class="sub-score"><span class="sub-score-label">P</span><span class="sub-score-val" style="color:' + getScoreColor(s.pattern_score) + '">' + s.pattern_score + '</span></div>' +
+          '<div class="sub-score"><span class="sub-score-label">T</span><span class="sub-score-val" style="color:' + getScoreColor(s.tech_score) + '">' + s.tech_score + '</span></div>' +
+        '</div>' +
+        ((s.flags && s.flags.length > 0) ? '<div style="font-size:10px;margin-top:3px;color:#fbbf24">' + escapeHtml(s.flags[0]) + '</div>' : '') +
+      '</td>' +
+      '<td class="return-cell hide-mobile">' + formatReturn(s.return_1d) + '</td>' +
+      '<td class="return-cell hide-mobile">' + formatReturn(s.return_5d) + '</td>' +
+      '<td class="return-cell hide-mobile">' + formatReturn(s.return_20d) + '</td>' +
+      '<td><span class="vol-badge ' + volClass + '">' + s.volume_ratio + 'x</span></td>' +
+    '</tr>';
   }).join('');
 
   document.getElementById('stockTable').innerHTML = html;
 }
 
 function showDetail(ticker) {
-  const stock = allStocks.find(s => s.ticker === ticker);
+  var stock = allStocks.find(function(s) { return s.ticker === ticker; });
   if (!stock) return;
-
-  const flag = stock.market === 'KR' ? '🇰🇷' : '🇺🇸';
-  const tickerDisplay = ticker.replace('.KS', '').replace('.KQ', '');
 
   function renderDetailSection(title, items) {
     if (!items || items.length === 0) return '';
-    return `
-      <div class="detail-section">
-        <h3>${title}</h3>
-        ${items.map(item => {
-          const color = getScoreColor(item.score);
-          const pct = Math.min(100, item.score);
-          return `<div class="detail-item">
-            <span class="detail-item-name">${item.name}</span>
-            <div style="display:flex;align-items:center;">
-              <span class="detail-item-score" style="color:${color}">${item.score}</span>
-              <span class="detail-item-val">(${item.value})</span>
-              <div class="detail-bar"><div class="detail-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    `;
+    var rows = items.map(function(item) {
+      var color = getScoreColor(item.score);
+      var pct = Math.min(100, item.score);
+      return '<div class="detail-item">' +
+        '<span class="detail-item-name">' + escapeHtml(item.name) + '</span>' +
+        '<div style="display:flex;align-items:center;">' +
+          '<span class="detail-item-score" style="color:' + color + '">' + item.score + '</span>' +
+          '<span class="detail-item-val">(' + escapeHtml(item.value) + ')</span>' +
+          '<div class="detail-bar"><div class="detail-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="detail-section"><h3>' + escapeHtml(title) + '</h3>' + rows + '</div>';
   }
 
-  const html = `
-    <div class="modal-header">
-      <div>
-        <h2>${flag} ${stock.name} <span style="color:var(--text-dim);font-size:14px">(${tickerDisplay})</span></h2>
-        <div style="margin-top:8px;display:flex;gap:16px;font-size:13px;">
-          <span>종합: <b style="color:${getScoreColor(stock.total_score)}">${stock.total_score}점</b></span>
-          <span class="signal-badge ${getSignalClass(stock.signal)}">${stock.signal}</span>
-        </div>
-      </div>
-      <button class="modal-close" onclick="closeModal()">&times;</button>
-    </div>
+  var floatDisplay = stock.float_ratio != null ? (stock.float_ratio * 100).toFixed(0) + '%' : 'N/A';
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;text-align:center;">
-      <div style="background:#0f172a;border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-dim)">매집 점수</div>
-        <div style="font-size:22px;font-weight:700;margin-top:4px;color:${getScoreColor(stock.accum_score || 0)}">${stock.accum_score || '-'}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-dim)">패턴 점수</div>
-        <div style="font-size:22px;font-weight:700;margin-top:4px;color:${getScoreColor(stock.pattern_score)}">${stock.pattern_score}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-dim)">기술 점수</div>
-        <div style="font-size:22px;font-weight:700;margin-top:4px;color:${getScoreColor(stock.tech_score)}">${stock.tech_score}</div>
-      </div>
-    </div>
+  var flagsHtml = '';
+  if (stock.flags && stock.flags.length > 0) {
+    flagsHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">';
+    stock.flags.forEach(function(f) {
+      flagsHtml += '<span style="background:rgba(245,158,11,0.15);color:#fbbf24;padding:4px 10px;border-radius:6px;font-size:12px">' + escapeHtml(f) + '</span>';
+    });
+    flagsHtml += '</div>';
+  }
 
-    ${(stock.flags && stock.flags.length > 0) ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">' + stock.flags.map(f => '<span style="background:rgba(245,158,11,0.15);color:#fbbf24;padding:4px 10px;border-radius:6px;font-size:12px">' + f + '</span>').join('') + '</div>' : ''}
+  var html =
+    '<div class="modal-header">' +
+      '<div>' +
+        '<h2>' + escapeHtml(stock.name) + ' <span style="color:var(--text-dim);font-size:14px">(' + escapeHtml(stock.ticker) + ')</span></h2>' +
+        '<div style="margin-top:8px;display:flex;gap:16px;font-size:13px;">' +
+          '<span>종합: <b style="color:' + getScoreColor(stock.total_score) + '">' + stock.total_score + '점</b></span>' +
+          '<span class="signal-badge ' + getSignalClass(stock.signal) + '">' + escapeHtml(stock.signal) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<button class="modal-close" onclick="closeModal()">&times;</button>' +
+    '</div>' +
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;text-align:center;">
-      <div style="background:#0f172a;border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-dim)">1일 수익률</div>
-        <div class="return-cell" style="font-size:18px;margin-top:4px">${formatReturn(stock.return_1d)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-dim)">5일 수익률</div>
-        <div class="return-cell" style="font-size:18px;margin-top:4px">${formatReturn(stock.return_5d)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-dim)">20일 수익률</div>
-        <div class="return-cell" style="font-size:18px;margin-top:4px">${formatReturn(stock.return_20d)}</div>
-      </div>
-    </div>
+    '<div style="display:flex;gap:16px;margin-bottom:16px;font-size:12px;color:var(--text-dim)">' +
+      '<span>시총: <b style="color:var(--cyan)">' + escapeHtml(stock.market_cap_fmt || 'N/A') + '</b></span>' +
+      '<span>Float: <b style="color:var(--cyan)">' + floatDisplay + '</b></span>' +
+      '<span>ATR: <b style="color:var(--cyan)">' + (stock.atr_pct != null ? stock.atr_pct + '%' : 'N/A') + '</b></span>' +
+      '<span>섹터: <b>' + escapeHtml(stock.sector || 'N/A') + '</b></span>' +
+    '</div>' +
 
-    ${stock.details ? renderDetailSection('🕵️ 매집 감지', stock.details.accumulation) : ''}
-    ${stock.details ? renderDetailSection('📐 돌파 패턴', stock.details.pattern) : ''}
-    ${stock.details ? renderDetailSection('📊 기술 지표', stock.details.technical) : ''}
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;text-align:center;">' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">변동성</div>' +
+        '<div style="font-size:22px;font-weight:700;margin-top:4px;color:' + getScoreColor(stock.volatility_score || 0) + '">' + (stock.volatility_score || '-') + '</div>' +
+      '</div>' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">매집</div>' +
+        '<div style="font-size:22px;font-weight:700;margin-top:4px;color:' + getScoreColor(stock.accum_score || 0) + '">' + (stock.accum_score || '-') + '</div>' +
+      '</div>' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">패턴</div>' +
+        '<div style="font-size:22px;font-weight:700;margin-top:4px;color:' + getScoreColor(stock.pattern_score) + '">' + stock.pattern_score + '</div>' +
+      '</div>' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">기술</div>' +
+        '<div style="font-size:22px;font-weight:700;margin-top:4px;color:' + getScoreColor(stock.tech_score) + '">' + stock.tech_score + '</div>' +
+      '</div>' +
+    '</div>' +
 
-    <div style="margin-top:16px;padding:12px;background:#0f172a;border-radius:8px;font-size:12px;color:var(--text-dim)">
-      ⚠️ 본 분석은 참고용이며 투자 판단의 책임은 본인에게 있습니다.
-    </div>
-  `;
+    flagsHtml +
+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;text-align:center;">' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">1일 수익률</div>' +
+        '<div class="return-cell" style="font-size:18px;margin-top:4px">' + formatReturn(stock.return_1d) + '</div>' +
+      '</div>' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">5일 수익률</div>' +
+        '<div class="return-cell" style="font-size:18px;margin-top:4px">' + formatReturn(stock.return_5d) + '</div>' +
+      '</div>' +
+      '<div style="background:#0f172a;border-radius:8px;padding:12px;">' +
+        '<div style="font-size:11px;color:var(--text-dim)">20일 수익률</div>' +
+        '<div class="return-cell" style="font-size:18px;margin-top:4px">' + formatReturn(stock.return_20d) + '</div>' +
+      '</div>' +
+    '</div>' +
+
+    (stock.details ? renderDetailSection('변동성 프로파일', stock.details.volatility) : '') +
+    (stock.details ? renderDetailSection('매집 감지', stock.details.accumulation) : '') +
+    (stock.details ? renderDetailSection('차트 패턴', stock.details.pattern) : '') +
+    (stock.details ? renderDetailSection('기술 모멘텀', stock.details.technical) : '') +
+
+    '<div style="margin-top:16px;padding:12px;background:#0f172a;border-radius:8px;font-size:12px;color:var(--text-dim)">' +
+      '본 분석은 참고용이며 투자 판단의 책임은 본인에게 있습니다.' +
+    '</div>';
 
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
@@ -767,38 +781,35 @@ function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
 }
 
-// Events
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+document.querySelectorAll('.filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
     btn.classList.add('active');
     currentFilter = btn.dataset.filter;
     renderTable(allStocks);
   });
 });
 
-document.getElementById('searchBox').addEventListener('input', () => renderTable(allStocks));
+document.getElementById('searchBox').addEventListener('input', function() { renderTable(allStocks); });
 
-document.querySelectorAll('thead th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
+document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
+  th.addEventListener('click', function() {
+    var key = th.dataset.sort;
     if (key === 'rank') { currentSort = { key: 'total_score', desc: true }; }
     else if (currentSort.key === key) { currentSort.desc = !currentSort.desc; }
-    else { currentSort = { key, desc: true }; }
-
-    document.querySelectorAll('thead th').forEach(t => t.classList.remove('sorted'));
+    else { currentSort = { key: key, desc: true }; }
+    document.querySelectorAll('thead th').forEach(function(t) { t.classList.remove('sorted'); });
     th.classList.add('sorted');
     renderTable(allStocks);
   });
 });
 
-document.getElementById('modalOverlay').addEventListener('click', (e) => {
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
 });
 
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
 
-// Init
 loadData();
 </script>
 
