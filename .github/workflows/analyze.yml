@@ -1,4 +1,4 @@
-name: 급등주 예측기 v3 자동 분석
+name: 급등주 분석 & 대시보드 배포
 
 on:
   schedule:
@@ -10,9 +10,18 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: analyze-and-deploy
+  cancel-in-progress: false
 
 jobs:
-  analyze:
+  analyze-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
@@ -41,3 +50,15 @@ jobs:
           git add data/
           git diff --staged --quiet || git commit -m "분석 업데이트 $(date +'%Y-%m-%d %H:%M')"
           git push
+
+      - name: Pages 설정
+        uses: actions/configure-pages@v4
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v4

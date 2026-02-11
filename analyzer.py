@@ -25,8 +25,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 warnings.filterwarnings("ignore")
 
 # ====== 설정 ======
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
 MAX_MARKET_CAP = 2_000_000_000  # $2B
 MIN_VOLUME = 100_000
@@ -1052,7 +1052,21 @@ class PreSurgePredictor:
             print("\n📱 텔레그램 미설정 - 미리보기:\n")
             print(message)
             return
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+
+        # 봇 토큰 유효성 검사
+        base = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+        try:
+            me = requests.get(f"{base}/getMe", timeout=10)
+            if me.status_code != 200:
+                print(f"❌ 텔레그램 봇 토큰 무효: {me.text}")
+                print("   → BotFather에서 토큰을 재확인하고 GitHub Secrets를 업데이트하세요")
+                return
+            print(f"✅ 봇 확인: {me.json().get('result', {}).get('username', '?')}")
+        except Exception as e:
+            print(f"❌ 텔레그램 연결 실패: {e}")
+            return
+
+        url = f"{base}/sendMessage"
         parts, m = [], message
         while m:
             if len(m) <= 4096:
@@ -1071,7 +1085,17 @@ class PreSurgePredictor:
                     "parse_mode": "Markdown",
                     "disable_web_page_preview": True,
                 }, timeout=15)
-                print("✅ 전송 완료!" if r.status_code == 200 else f"❌ 실패: {r.text}")
+                if r.status_code == 200:
+                    print("✅ 전송 완료!")
+                else:
+                    # Markdown 파싱 실패 시 일반 텍스트로 재시도
+                    print(f"⚠️ Markdown 전송 실패 ({r.status_code}), 일반 텍스트로 재시도...")
+                    r2 = requests.post(url, json={
+                        "chat_id": TELEGRAM_CHAT_ID,
+                        "text": p.replace("*", "").replace("_", ""),
+                        "disable_web_page_preview": True,
+                    }, timeout=15)
+                    print("✅ 전송 완료 (텍스트)" if r2.status_code == 200 else f"❌ 실패: {r2.text}")
             except Exception as e:
                 print(f"❌ 오류: {e}")
 
