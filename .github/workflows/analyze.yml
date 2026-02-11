@@ -49,6 +49,7 @@ jobs:
           git config user.email "bot@surge-predictor"
           git add data/
           git diff --staged --quiet || git commit -m "분석 업데이트 $(date +'%Y-%m-%d %H:%M')"
+          git pull --rebase origin main
           git push
 
       - name: Pages 설정
