@@ -1,0 +1,41 @@
+name: 🌐 대시보드 배포 (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'data/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 📄 Pages 설정
+        uses: actions/configure-pages@v4
+
+      - name: 📦 아티팩트 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: 🚀 Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,39 @@
+name: 🚀 급등주 예측기 자동 분석
+
+on:
+  schedule:
+    # 한국시간 평일 아침 7시 = UTC 전날 22시 (월~금)
+    - cron: '0 22 * * 0-4'
+    # 한국시간 평일 저녁 6시 = UTC 09시 (장 마감 후)
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:  # 수동 실행
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 🐍 Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 패키지 설치
+        run: pip install yfinance pandas numpy requests feedparser
+
+      - name: 📊 급등주 분석 실행
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python analyzer.py
+
+      - name: 📤 대시보드 데이터 커밋
+        run: |
+          git config user.name "Surge Bot"
+          git config user.email "bot@surge-predictor"
+          git add data/
+          git diff --staged --quiet || git commit -m "📊 분석 업데이트 $(date +'%Y-%m-%d %H:%M')"
+          git push
