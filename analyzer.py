@@ -1,5 +1,5 @@
 """
-급등 예측기 v3 - Low Cap US Stock Surge Detector
+급등 예측기 v4 - Low Cap US Stock Surge Detector
 핵심: 시총이 낮고 변동성이 높은 미국 소형주에서 급등 직전 종목을 찾는다
 
 [분석 카테고리]
@@ -8,6 +8,19 @@
 3. 차트 패턴 (30%) — 볼린저스퀴즈, 저항선접근, 삼각수렴, 컵앤핸들, 이평선밀집,
                        저점상승, 베이스돌파, 포켓피봇, 갭분석, VWAP회복, 상대강도
 4. 기술 모멘텀 (20%) — RSI, MACD, 모멘텀
+5. 보너스 — 주봉추세 정렬, 숏스퀴즈, 섹터 상대강도
+
+[v4 신규]
+- 주봉 멀티타임프레임 분석 & 보너스
+- 시그널 지속성 추적 (신규 vs N일 연속)
+- 과거 시그널 적중률 자동 계산
+- 숏 이자율 & 숏스퀴즈 감지
+- 실적 발표 근접 경고
+- 섹터 상대강도 보너스
+- 미니차트 스파크라인 데이터
+- OBV 벡터화 성능 최적화
+- Nasdaq API 재시도 로직
+- 데이터 사이즈 최적화 (상위 500 상세, 나머지 요약)
 """
 
 import yfinance as yf
@@ -80,49 +93,69 @@ class UniverseFetcher:
 
     @staticmethod
     def fetch_nasdaq_screener(max_market_cap=MAX_MARKET_CAP):
-        """Nasdaq Screener API로 소형주 수집 — 메타데이터(이름, 시총) 포함 반환"""
-        metadata = {}  # {symbol: {"name": ..., "market_cap": ...}}
+        """Nasdaq Screener API로 소형주 수집 — 재시도 로직 + 섹터/업종 포함"""
+        metadata = {}
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
         offset = 0
         limit = 200
         total = None
+        max_retries = 3
 
         while True:
             url = (
                 f"https://api.nasdaq.com/api/screener/stocks"
                 f"?tableonly=true&limit={limit}&offset={offset}"
             )
-            try:
-                resp = requests.get(url, headers=headers, timeout=30)
-                data = resp.json()
-                rows = data["data"]["table"]["rows"]
-                if total is None:
-                    total = int(data["data"]["totalrecords"])
-                    print(f"  📡 Nasdaq screener: {total}개 상장 종목")
+            success = False
+            for attempt in range(max_retries):
+                try:
+                    resp = requests.get(url, headers=headers, timeout=30)
+                    data = resp.json()
+                    rows = data["data"]["table"]["rows"]
+                    if total is None:
+                        total = int(data["data"]["totalrecords"])
+                        print(f"  📡 Nasdaq screener: {total}개 상장 종목")
 
-                for row in rows:
-                    symbol = row.get("symbol", "").strip()
-                    name = row.get("name", symbol).strip()
-                    mcap_str = row.get("marketCap", "")
-                    mcap = UniverseFetcher._parse_market_cap(mcap_str)
+                    for row in rows:
+                        symbol = row.get("symbol", "").strip()
+                        name = row.get("name", symbol).strip()
+                        mcap_str = row.get("marketCap", "")
+                        mcap = UniverseFetcher._parse_market_cap(mcap_str)
+                        sector = row.get("sector", "").strip()
+                        industry = row.get("industry", "").strip()
 
-                    if (symbol
-                        and mcap is not None
-                        and 0 < mcap <= max_market_cap
-                        and not any(c in symbol for c in ['^', '/', '.'])
-                    ):
-                        metadata[symbol] = {"name": name, "market_cap": mcap}
+                        if (symbol
+                            and mcap is not None
+                            and 0 < mcap <= max_market_cap
+                            and not any(c in symbol for c in ['^', '/', '.'])
+                        ):
+                            metadata[symbol] = {
+                                "name": name,
+                                "market_cap": mcap,
+                                "sector": sector,
+                                "industry": industry,
+                            }
 
-                offset += limit
-                if offset >= total:
+                    success = True
                     break
-                time.sleep(0.3)
 
-            except Exception as e:
-                print(f"  ⚠️ Nasdaq API 오류 (offset {offset}): {e}")
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait = 2 ** attempt
+                        print(f"  ⚠️ Nasdaq API 재시도 {attempt+1}/{max_retries} ({wait}초 후): {e}")
+                        time.sleep(wait)
+                    else:
+                        print(f"  ⚠️ Nasdaq API 오류 (offset {offset}): {e}")
+
+            if not success and total is None:
                 break
+
+            offset += limit
+            if total is not None and offset >= total:
+                break
+            time.sleep(0.3)
 
         print(f"  ✅ 필터링 완료: {len(metadata)}개 (시총 < ${max_market_cap/1e9:.0f}B)")
         return metadata
@@ -160,11 +193,11 @@ class UniverseFetcher:
             print("  ⚠️ Nasdaq API 실패, Wikipedia 폴백 사용")
             fb_tickers = UniverseFetcher._fallback_wikipedia()
             for t in fb_tickers:
-                metadata[t] = {"name": t, "market_cap": None}
+                metadata[t] = {"name": t, "market_cap": None, "sector": "", "industry": ""}
 
         for t in UniverseFetcher.EXTRA_TICKERS:
             if t not in metadata:
-                metadata[t] = {"name": t, "market_cap": None}
+                metadata[t] = {"name": t, "market_cap": None, "sector": "", "industry": ""}
 
         tickers = sorted(metadata.keys())
         print(f"  📊 총 유니버스: {len(tickers)}종목")
@@ -264,15 +297,9 @@ class AccumulationDetector:
 
     @staticmethod
     def calc_obv(close, volume):
-        obv = [0]
-        for i in range(1, len(close)):
-            if close.iloc[i] > close.iloc[i-1]:
-                obv.append(obv[-1] + volume.iloc[i])
-            elif close.iloc[i] < close.iloc[i-1]:
-                obv.append(obv[-1] - volume.iloc[i])
-            else:
-                obv.append(obv[-1])
-        return pd.Series(obv, index=close.index)
+        """벡터화된 OBV 계산 (기존 루프 대비 10x+ 빠름)"""
+        direction = np.sign(close.diff()).fillna(0)
+        return (direction * volume).cumsum()
 
     @staticmethod
     def obv_divergence(close, volume):
@@ -591,16 +618,204 @@ class PatternDetector:
         return 20, f"RS약 {' '.join(details)}"
 
 
+# ====== 멀티 타임프레임 ======
+
+class MultiTimeframeAnalyzer:
+    """주봉 추세 분석 — 일봉 데이터를 주봉으로 리샘플링"""
+
+    @staticmethod
+    def weekly_trend(close, volume):
+        """주봉 추세: 10주 MA, 4주 변화율, 주봉 거래량"""
+        if len(close) < 50:
+            return 0, "데이터 부족"
+
+        try:
+            wc = close.resample('W').last().dropna()
+            wv = volume.resample('W').sum().dropna()
+        except Exception:
+            return 50, "리샘플링 실패"
+
+        if len(wc) < 10:
+            return 50, "주봉 부족"
+
+        ma10 = wc.rolling(10).mean()
+        above_ma = False
+        if not pd.isna(ma10.iloc[-1]):
+            above_ma = wc.iloc[-1] > ma10.iloc[-1]
+
+        w4_ret = 0
+        if len(wc) >= 4:
+            w4_ret = (wc.iloc[-1] / wc.iloc[-4] - 1) * 100
+
+        wv_ratio = 1
+        if len(wv) >= 8:
+            recent_wv = wv.iloc[-2:].mean()
+            avg_wv = wv.iloc[-8:].mean()
+            if avg_wv > 0:
+                wv_ratio = recent_wv / avg_wv
+
+        score = 50
+        parts = []
+
+        if above_ma:
+            score += 15
+            parts.append("10주MA↑")
+        else:
+            score -= 10
+            parts.append("10주MA↓")
+
+        if 0 < w4_ret < 10:
+            score += 15
+            parts.append(f"4주+{w4_ret:.1f}%")
+        elif w4_ret >= 10:
+            score += 5
+            parts.append(f"4주+{w4_ret:.1f}%급등")
+        elif -5 < w4_ret < 0:
+            score += 5
+            parts.append(f"4주{w4_ret:.1f}%눌림")
+        else:
+            score -= 10
+            parts.append(f"4주{w4_ret:.1f}%")
+
+        if wv_ratio > 1.3:
+            score += 10
+            parts.append(f"주Vol:{wv_ratio:.1f}x")
+
+        return min(100, max(0, score)), " ".join(parts)
+
+
+# ====== 시그널 추적 ======
+
+class SignalTracker:
+    """시그널 지속성 추적 + 과거 적중률 계산"""
+
+    def __init__(self, path="data/history.json"):
+        self.path = path
+        self.history = self._load()
+
+    def _load(self):
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {"snapshots": []}
+
+    def get_persistence(self, ticker):
+        """이 종목이 최근 며칠 연속 관심(55+) 이상이었는지"""
+        days = 0
+        for snap in reversed(self.history["snapshots"]):
+            if ticker in snap.get("stocks", {}):
+                days += 1
+            else:
+                break
+        return days
+
+    def get_new_signals(self, current_results, threshold=55):
+        """이전 스냅샷에 없던 새로운 시그널 종목"""
+        if not self.history["snapshots"]:
+            return {r["ticker"] for r in current_results if r["total_score"] >= threshold}
+
+        prev_tickers = set(self.history["snapshots"][-1].get("stocks", {}).keys())
+        return {
+            r["ticker"] for r in current_results
+            if r["total_score"] >= threshold and r["ticker"] not in prev_tickers
+        }
+
+    def compute_hit_rates(self):
+        """과거 '급등 임박' 시그널의 실제 성과 계산"""
+        snapshots = self.history["snapshots"]
+        if len(snapshots) < 4:
+            return None
+
+        periods = {"7d": (5, 9), "14d": (12, 16), "30d": (27, 33)}
+        results = {}
+
+        for period_name, (min_days, max_days) in periods.items():
+            hits_10 = 0
+            hits_5 = 0
+            positive = 0
+            total = 0
+            total_return = 0
+
+            for i, snap in enumerate(snapshots):
+                try:
+                    snap_date = datetime.strptime(snap["date"], "%Y-%m-%d")
+                except (ValueError, KeyError):
+                    continue
+
+                for future_snap in snapshots[i+1:]:
+                    try:
+                        future_date = datetime.strptime(future_snap["date"], "%Y-%m-%d")
+                    except (ValueError, KeyError):
+                        continue
+                    diff = (future_date - snap_date).days
+
+                    if diff < min_days:
+                        continue
+                    if diff > max_days:
+                        break
+
+                    for ticker, data in snap["stocks"].items():
+                        if data.get("score", 0) >= 78:
+                            future_data = future_snap["stocks"].get(ticker)
+                            if future_data and data.get("price", 0) > 0:
+                                ret = (future_data["price"] / data["price"] - 1) * 100
+                                total += 1
+                                total_return += ret
+                                if ret >= 10:
+                                    hits_10 += 1
+                                if ret >= 5:
+                                    hits_5 += 1
+                                if ret > 0:
+                                    positive += 1
+                    break
+            if total > 0:
+                results[period_name] = {
+                    "total": total,
+                    "hit_10pct": round(hits_10 / total * 100, 1),
+                    "hit_5pct": round(hits_5 / total * 100, 1),
+                    "positive_pct": round(positive / total * 100, 1),
+                    "avg_return": round(total_return / total, 2),
+                }
+
+        return results if results else None
+
+    def save_snapshot(self, results):
+        """현재 분석 결과 스냅샷 저장 (대기 이상만)"""
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        stocks = {}
+        for r in results:
+            if r["total_score"] >= 40:
+                stocks[r["ticker"]] = {
+                    "score": r["total_score"],
+                    "signal": r["signal"],
+                    "price": r["price"],
+                }
+
+        self.history["snapshots"] = [
+            s for s in self.history["snapshots"] if s.get("date") != today
+        ]
+        self.history["snapshots"].append({"date": today, "stocks": stocks})
+        self.history["snapshots"] = self.history["snapshots"][-90:]
+
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(self.history, f, ensure_ascii=False)
+        print(f"  💾 시그널 히스토리 저장 ({len(stocks)}종목, 총 {len(self.history['snapshots'])}일)")
+
+
 # ====== 메인 엔진 ======
 
 class PreSurgePredictor:
-    """급등 예측기 v3 메인"""
+    """급등 예측기 v4 메인"""
 
     def __init__(self):
         self.results = []
         self.market_summary = {}
         self.spy_close = None
-        self.metadata = {}  # Nasdaq API에서 받은 {ticker: {name, market_cap}}
+        self.metadata = {}
+        self.signal_tracker = SignalTracker()
 
     def analyze_stock(self, ticker, hist):
         """개별 종목 분석 — hist는 yf.download()로 받은 DataFrame"""
@@ -611,11 +826,9 @@ class PreSurgePredictor:
         c, h, l, v = hist["Close"], hist["High"], hist["Low"], hist["Volume"]
         o = hist["Open"]
 
-        # NaN 제거된 유효 데이터 확인
         if c.dropna().empty or len(c.dropna()) < 30:
             return None
 
-        # info는 enrichment 단계에서 채워짐 (벌크 다운로드에서는 없음)
         info = meta.get("_info", {})
 
         # ===== 변동성 프로파일 (15%) =====
@@ -685,6 +898,9 @@ class PreSurgePredictor:
             {"name": "모멘텀", "score": mom_s,  "value": mom_d,  "w": 30},
         ]
 
+        # ===== 주봉 멀티타임프레임 =====
+        weekly_s, weekly_d = MultiTimeframeAnalyzer.weekly_trend(c, v)
+
         def wavg(items):
             tw = sum(i["w"] for i in items)
             return sum(i["score"] * i["w"] / tw for i in items)
@@ -703,6 +919,8 @@ class PreSurgePredictor:
         if acc_avg >= 65 and rs2_s >= 70:  bonus += 8
         if vol_avg >= 70 and acc_avg >= 65: bonus += 8
         if pp_s >= 70 and rs2_s >= 65:     bonus += 6
+        # 주봉 정렬 보너스
+        if weekly_s >= 70:                  bonus += 5
         total = min(100, total + bonus)
 
         # 시그널
@@ -719,7 +937,7 @@ class PreSurgePredictor:
         r20d = (c.iloc[-1] / c.iloc[-20] - 1) * 100 if len(c) >= 20 else 0
         vr = float(v[-3:].mean() / v[-20:].mean()) if len(v) >= 20 and v[-20:].mean() > 0 else 1.0
 
-        # ATR% 원시값 추출
+        # ATR% 원시값
         atr_pct_val = None
         if len(c) >= 15:
             tr1 = h - l
@@ -741,8 +959,16 @@ class PreSurgePredictor:
         if bb_s >= 70:                      flags.append("📊 베이스 돌파")
         if vol_avg >= 75:                   flags.append("🌋 고변동성")
         if fr_s >= 80:                      flags.append("🎯 Low Float")
+        if weekly_s >= 75:                  flags.append("📈 주봉 정렬")
 
         mcap = meta.get("market_cap") or info.get("marketCap")
+
+        # 스파크라인 데이터 (최근 30일, 0~100 정규화)
+        spark_len = min(30, len(c))
+        spark_raw = c.iloc[-spark_len:].values
+        sp_min, sp_max = float(spark_raw.min()), float(spark_raw.max())
+        sp_range = sp_max - sp_min if sp_max != sp_min else 1
+        sparkline = [round((float(p) - sp_min) / sp_range * 100) for p in spark_raw]
 
         return {
             "ticker": ticker,
@@ -755,6 +981,7 @@ class PreSurgePredictor:
             "accum_score": round(acc_avg, 1),
             "pattern_score": round(pat_avg, 1),
             "tech_score": round(tech_avg, 1),
+            "weekly_score": round(weekly_s, 1),
             "return_1d": round(r1d, 2),
             "return_5d": round(r5d, 2),
             "return_20d": round(r20d, 2),
@@ -763,14 +990,16 @@ class PreSurgePredictor:
             "market_cap_fmt": format_market_cap(mcap),
             "float_ratio": round(fr_val, 2) if fr_val is not None else None,
             "atr_pct": atr_pct_val,
+            "sparkline": sparkline,
             "details": {
                 "volatility": [{"name": i["name"], "score": i["score"], "value": i["value"]} for i in vol_items],
                 "accumulation": [{"name": i["name"], "score": i["score"], "value": i["value"]} for i in acc_items],
                 "pattern": [{"name": i["name"], "score": i["score"], "value": i["value"]} for i in pat_items],
                 "technical": [{"name": i["name"], "score": i["score"], "value": i["value"]} for i in tech_items],
+                "weekly": [{"name": "주봉 추세", "score": round(weekly_s, 1), "value": weekly_d}],
             },
-            "sector": html.escape(info.get("sector", "")),
-            "industry": html.escape(info.get("industry", "")),
+            "sector": html.escape(meta.get("sector", "") or info.get("sector", "")),
+            "industry": html.escape(meta.get("industry", "") or info.get("industry", "")),
             "per": info.get("trailingPE"),
             "flags": flags,
             "updated_at": datetime.now(timezone(timedelta(hours=9))).isoformat(),
@@ -842,7 +1071,6 @@ class PreSurgePredictor:
                     continue
 
                 if len(chunk) == 1:
-                    # 단일 종목이면 MultiIndex가 아님
                     t = chunk[0]
                     if not df.empty and len(df) >= 30:
                         all_data[t] = df
@@ -862,8 +1090,37 @@ class PreSurgePredictor:
 
         return all_data
 
+    def _add_sector_bonuses(self, results):
+        """섹터 상대강도 보너스: 같은 섹터 대비 초과 수익 시 가산"""
+        sector_returns = {}
+        for r in results:
+            sector = r.get("sector", "")
+            if sector and sector != "N/A" and sector != "":
+                if sector not in sector_returns:
+                    sector_returns[sector] = []
+                sector_returns[sector].append(r["return_5d"])
+
+        sector_avg = {}
+        for s, rets in sector_returns.items():
+            if len(rets) >= 3:
+                sector_avg[s] = np.mean(rets)
+
+        for r in results:
+            sector = r.get("sector", "")
+            if sector in sector_avg:
+                alpha = r["return_5d"] - sector_avg[sector]
+                r["sector_alpha"] = round(alpha, 1)
+                if alpha > 5:
+                    r["total_score"] = min(100, r["total_score"] + 3)
+                elif alpha > 2:
+                    r["total_score"] = min(100, r["total_score"] + 1)
+            else:
+                r["sector_alpha"] = None
+
+        print(f"  📊 섹터 보너스 적용 ({len(sector_avg)}개 섹터)")
+
     def _enrich_top_results(self, results, top_n=100):
-        """상위 종목에 대해 개별 info 조회하여 float ratio, sector 등 보강"""
+        """상위 종목: 개별 info 조회 → float ratio, 숏 이자율, 실적일, 섹터 보강"""
         candidates = results[:top_n]
         print(f"\n🔎 상위 {len(candidates)}종목 상세 정보 조회 중...")
 
@@ -884,7 +1141,9 @@ class PreSurgePredictor:
                 except Exception:
                     pass
 
-        # 결과 보강 및 재채점
+        short_count = 0
+        earnings_count = 0
+
         for r in results:
             info = enriched.get(r["ticker"], {})
             if not info:
@@ -898,7 +1157,7 @@ class PreSurgePredictor:
             r["sector"] = html.escape(info.get("sector", r.get("sector", "")))
             r["industry"] = html.escape(info.get("industry", r.get("industry", "")))
 
-            # yfinance 시총으로 보정 (더 정확)
+            # yfinance 시총으로 보정
             yf_mcap = info.get("marketCap")
             if yf_mcap:
                 r["market_cap"] = yf_mcap
@@ -907,10 +1166,8 @@ class PreSurgePredictor:
             # float ratio 보강 시 변동성 점수 재계산
             if fr_val is not None:
                 old_vol = r["volatility_score"]
-                # fr 비중 20%: 새 점수 = 기존의 80% + 새 fr의 20%
                 new_vol = old_vol * 0.8 + fr_s * 0.2
                 r["volatility_score"] = round(new_vol, 1)
-                # 전체 점수 재계산
                 old_total = r["total_score"]
                 r["total_score"] = round(
                     old_total + (new_vol - old_vol) * 0.15, 1
@@ -921,13 +1178,44 @@ class PreSurgePredictor:
             if fr_val is not None and fr_val < 0.5 and "🎯 Low Float" not in r.get("flags", []):
                 r.setdefault("flags", []).append("🎯 Low Float")
 
-        # 재정렬
+            # ===== 숏 이자율 =====
+            short_pct = info.get("shortPercentOfFloat")
+            if short_pct is not None:
+                r["short_interest"] = round(short_pct * 100, 1)
+                r["short_ratio"] = info.get("shortRatio")
+                short_count += 1
+                # 숏스퀴즈 보너스
+                if short_pct >= 0.15 and r.get("accum_score", 0) >= 65:
+                    r["total_score"] = min(100, r["total_score"] + 5)
+                    if "🔥 숏스퀴즈 가능" not in r.get("flags", []):
+                        r.setdefault("flags", []).append("🔥 숏스퀴즈 가능")
+                elif short_pct >= 0.10:
+                    if "📍 숏 비중↑" not in r.get("flags", []):
+                        r.setdefault("flags", []).append("📍 숏 비중↑")
+
+            # ===== 실적 발표 경고 =====
+            try:
+                earnings_ts = info.get("earningsTimestampStart") or info.get("earningsTimestamp")
+                if earnings_ts:
+                    earnings_date = datetime.fromtimestamp(earnings_ts)
+                    days_until = (earnings_date - datetime.now()).days
+                    if 0 <= days_until <= 14:
+                        r["earnings_soon"] = True
+                        r["earnings_days"] = days_until
+                        r.setdefault("flags", []).append(f"📅 실적 D-{days_until}")
+                        earnings_count += 1
+                    elif -3 <= days_until < 0:
+                        r["earnings_recent"] = True
+                        r.setdefault("flags", []).append("📅 실적 완료")
+            except Exception:
+                pass
+
         results.sort(key=lambda x: x["total_score"], reverse=True)
-        print(f"  ✅ 상세 정보 보강 완료")
+        print(f"  ✅ 상세 정보 보강 완료 (숏데이터:{short_count}개, 실적경고:{earnings_count}개)")
 
     def run_full_scan(self):
         print("=" * 60)
-        print("  🔍 급등 예측기 v3 - Low Cap US Stock Surge Detector")
+        print("  🔍 급등 예측기 v4 - Low Cap US Stock Surge Detector")
         print("=" * 60)
 
         # 종목 수집
@@ -975,10 +1263,30 @@ class PreSurgePredictor:
         elapsed = time.time() - t0
         print(f"\n⏱️ 분석 완료: {elapsed:.0f}초 (성공:{len(results)} 실패:{failed})")
 
+        # 1차 정렬
         results.sort(key=lambda x: x["total_score"], reverse=True)
 
-        # 상위 종목 상세 정보 보강 (float ratio, sector 등)
+        # 섹터 상대강도 보너스
+        self._add_sector_bonuses(results)
+
+        # 상위 종목 상세 정보 보강 (숏 이자율, 실적 경고 포함)
         self._enrich_top_results(results, top_n=100)
+
+        # 재정렬
+        results.sort(key=lambda x: x["total_score"], reverse=True)
+
+        # 시그널 지속성 & 신규 시그널
+        new_signals = self.signal_tracker.get_new_signals(results)
+        for r in results:
+            r["signal_days"] = self.signal_tracker.get_persistence(r["ticker"])
+            r["is_new"] = r["ticker"] in new_signals
+
+        # 과거 적중률
+        hit_rates = self.signal_tracker.compute_hit_rates()
+
+        # 시그널 스냅샷 저장
+        self.signal_tracker.save_snapshot(results)
+
         self.results = results
 
         elapsed_total = time.time() - t0
@@ -991,6 +1299,9 @@ class PreSurgePredictor:
             "avg_score": round(np.mean([r["total_score"] for r in results]), 1) if results else 0,
             "low_float_count": len([r for r in results if (r.get("float_ratio") or 1) < 0.5]),
             "high_vol_count": len([r for r in results if (r.get("volatility_score") or 0) >= 70]),
+            "new_signal_count": len([r for r in results if r.get("is_new") and r["total_score"] >= 55]),
+            "short_squeeze_count": len([r for r in results if r.get("short_interest") and r["short_interest"] >= 15]),
+            "hit_rates": hit_rates,
             "scan_sec": round(elapsed_total),
             "updated_at": datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M KST"),
         }
@@ -998,40 +1309,87 @@ class PreSurgePredictor:
 
     def save_results(self, path="data/analysis.json"):
         os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # 데이터 최적화: 상위 500개 상세, 나머지 요약
+        full_stocks = self.results[:500]
+        minimal_stocks = []
+        for r in self.results[500:]:
+            minimal_stocks.append({
+                "ticker": r["ticker"],
+                "name": r["name"],
+                "price": r["price"],
+                "signal": r["signal"],
+                "total_score": r["total_score"],
+                "volatility_score": r.get("volatility_score"),
+                "accum_score": r.get("accum_score"),
+                "pattern_score": r.get("pattern_score"),
+                "tech_score": r.get("tech_score"),
+                "market_cap_fmt": r.get("market_cap_fmt"),
+                "return_1d": r["return_1d"],
+                "return_5d": r.get("return_5d"),
+                "return_20d": r.get("return_20d"),
+                "volume_ratio": r["volume_ratio"],
+                "sector": r.get("sector", ""),
+                "sparkline": r.get("sparkline"),
+                "signal_days": r.get("signal_days", 0),
+                "is_new": r.get("is_new", False),
+            })
+
         out = {
-            "version": "3.0",
+            "version": "4.0",
             "focus": "low-cap-us-surge",
             "summary": self.market_summary,
-            "stocks": self.results,
+            "stocks": full_stocks + minimal_stocks,
         }
+
+        # JSON (readable)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(out, f, ensure_ascii=False, indent=2)
+
+        # JS (minified for browser)
         js = path.replace(".json", ".js")
         with open(js, "w", encoding="utf-8") as f:
             f.write("var STOCK_DATA = ")
-            json.dump(out, f, ensure_ascii=False, indent=2)
+            json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
             f.write(";\n")
-        print(f"💾 저장: {path} + {js}")
+
+        json_size = os.path.getsize(path) / 1024 / 1024
+        js_size = os.path.getsize(js) / 1024 / 1024
+        print(f"💾 저장: {path} ({json_size:.1f}MB) + {js} ({js_size:.1f}MB)")
 
     def build_telegram_msg(self, top_n=15):
         kst = timezone(timedelta(hours=9))
         now = datetime.now(kst)
         s = self.market_summary
 
-        msg = f"🔍 *급등 예측 리포트 v3*\n"
+        msg = f"🔍 *급등 예측 리포트 v4*\n"
         msg += f"📅 {now.strftime('%Y-%m-%d %H:%M')} KST\n"
         msg += f"🎯 미국 소형주 (시총 < $2B)\n"
         msg += "━" * 25 + "\n\n"
         msg += f"📊 *스캔 결과* ({s['total_analyzed']}종목 분석)\n"
         msg += f"🔴 급등임박: {s['surge_imminent']}개 | 🟠 매집: {s['accumulating']}개 | 🟡 관심: {s['watchlist']}개\n"
-        msg += f"🎯 Low Float: {s['low_float_count']}개 | 🌋 고변동: {s['high_vol_count']}개\n\n"
+        msg += f"🎯 Low Float: {s['low_float_count']}개 | 🌋 고변동: {s['high_vol_count']}개\n"
+        msg += f"🆕 신규시그널: {s.get('new_signal_count', 0)}개 | 📍 숏스퀴즈후보: {s.get('short_squeeze_count', 0)}개\n"
+
+        # 적중률 표시
+        hr = s.get("hit_rates")
+        if hr:
+            msg += "\n📈 *과거 적중률*\n"
+            for period, data in hr.items():
+                msg += f"  {period}: 10%↑ {data['hit_10pct']}% | 5%↑ {data['hit_5pct']}% | 평균 {data['avg_return']:+.1f}% ({data['total']}건)\n"
+
+        msg += "\n"
 
         surge = [r for r in self.results if r["total_score"] >= 78]
         if surge:
             msg += "🔴 *급등 임박*\n\n"
             for r in surge[:5]:
-                msg += f"*{r['name']}* ({r['ticker']}) {r['total_score']}점\n"
+                new_tag = "🆕 " if r.get("is_new") else ""
+                days_tag = f"[{r.get('signal_days', 0)}일]" if r.get("signal_days", 0) > 1 else ""
+                msg += f"*{new_tag}{r['name']}* ({r['ticker']}) {r['total_score']}점 {days_tag}\n"
                 msg += f"  시총:{r['market_cap_fmt']} | Vol:{r.get('volatility_score', '-')} Acc:{r['accum_score']} Pat:{r['pattern_score']} Tech:{r['tech_score']}\n"
+                if r.get("short_interest"):
+                    msg += f"  숏비중: {r['short_interest']:.1f}%\n"
                 for fl in r.get("flags", [])[:2]:
                     msg += f"  {fl}\n"
                 msg += "\n"
@@ -1040,7 +1398,8 @@ class PreSurgePredictor:
         if accum:
             msg += "🟠 *매집 진행*\n\n"
             for r in accum[:7]:
-                msg += f"*{r['name']}* ({r['ticker']}) {r['total_score']}점 | 5D:{r['return_5d']:+.1f}% | {r['market_cap_fmt']}\n"
+                new_tag = "🆕 " if r.get("is_new") else ""
+                msg += f"*{new_tag}{r['name']}* ({r['ticker']}) {r['total_score']}점 | 5D:{r['return_5d']:+.1f}% | {r['market_cap_fmt']}\n"
                 if r.get("flags"):
                     msg += f"  {r['flags'][0]}\n"
 
@@ -1053,7 +1412,6 @@ class PreSurgePredictor:
             print(message)
             return
 
-        # 봇 토큰 유효성 검사
         base = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
         try:
             me = requests.get(f"{base}/getMe", timeout=10)
@@ -1088,7 +1446,6 @@ class PreSurgePredictor:
                 if r.status_code == 200:
                     print("✅ 전송 완료!")
                 else:
-                    # Markdown 파싱 실패 시 일반 텍스트로 재시도
                     print(f"⚠️ Markdown 전송 실패 ({r.status_code}), 일반 텍스트로 재시도...")
                     r2 = requests.post(url, json={
                         "chat_id": TELEGRAM_CHAT_ID,
@@ -1113,9 +1470,11 @@ def main():
     print("  🏆 TOP 10 급등 후보 (미국 소형주)")
     print("=" * 60)
     for i, r in enumerate(results[:10], 1):
-        print(f"  {i:2d}. {r['name']:>25s} | {r['total_score']:5.1f}점 | {r['market_cap_fmt']:>8s} | Vol:{r.get('volatility_score', '-'):>4} | {r['signal']}")
+        new_tag = "🆕" if r.get("is_new") else "  "
+        days = f"[{r['signal_days']}d]" if r.get("signal_days", 0) > 1 else "     "
+        print(f"  {new_tag} {i:2d}. {r['name']:>25s} | {r['total_score']:5.1f}점 | {r['market_cap_fmt']:>8s} | {days} | {r['signal']}")
         for fl in r.get("flags", []):
-            print(f"      {fl}")
+            print(f"         {fl}")
 
 
 if __name__ == "__main__":

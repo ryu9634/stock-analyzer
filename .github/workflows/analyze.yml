@@ -32,9 +32,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: 패키지 설치
-        run: pip install yfinance pandas numpy requests lxml
+        run: pip install -r requirements.txt
 
       - name: 급등주 분석 실행
         env:
@@ -63,3 +64,15 @@ jobs:
       - name: Pages 배포
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: 실패 알림 (텔레그램)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG="⚠️ 급등주 분석 워크플로우 실패%0A커밋: ${{ github.sha }}%0A링크: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode="HTML" || true
