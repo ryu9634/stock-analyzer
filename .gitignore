@@ -3,3 +3,9 @@ nul
 __pycache__/
 *.pyc
 .env
+
+# 재무 데이터 로컬 캐시 — 저장소를 비대하게 만들지 않도록 커밋하지 않는다.
+data/.fundamentals_cache.json
+
+# Pages 배포용 임시 디렉터리
+_site/

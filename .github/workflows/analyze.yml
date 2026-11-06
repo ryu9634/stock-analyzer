@@ -1,12 +1,12 @@
-name: 급등주 분석 & 대시보드 배포
+name: 기업 분석 & 대시보드 배포
 
 on:
   schedule:
-    # 한국시간 평일 아침 7시 = UTC 전날 22시 (월~금)
-    - cron: '0 22 * * 0-4'
-    # 한국시간 평일 저녁 6시 = UTC 09시 (장 마감 후)
-    - cron: '0 9 * * 1-5'
-  workflow_dispatch:  # 수동 실행
+    # 재무 데이터는 분기 실적 때만 바뀌므로 하루 1회로 충분하다.
+    # 한국시간 평일 아침 7시 43분 = UTC 전날 22시 43분
+    # (정시는 GitHub 크론이 혼잡해 지연되므로 일부러 비켜 둔다)
+    - cron: '43 22 * * 0-4'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,11 +14,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: analyze-and-deploy
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  analyze-and-deploy:
+  analyze:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -37,21 +37,75 @@ jobs:
       - name: 패키지 설치
         run: pip install -r requirements.txt
 
-      - name: 급등주 분석 실행
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python analyzer.py
-        timeout-minutes: 20
+      - name: 재무 데이터 캐시 복원
+        # 저장소에 커밋하지 않고 Actions 캐시로만 유지한다.
+        # 따뜻한 캐시로 시작하면 API 호출이 줄어 레이트리밋을 피할 수 있다.
+        uses: actions/cache@v4
+        with:
+          path: data/.fundamentals_cache.json
+          key: fundamentals-${{ github.run_id }}
+          restore-keys: |
+            fundamentals-
 
-      - name: 대시보드 데이터 커밋
+      - name: 점수 함수 회귀 테스트
+        # 잘못된 점수가 대시보드로 배포되기 전에 여기서 막는다
+        run: python test_scoring.py
+
+      - name: 직전 결과 규모 기록
+        id: before
         run: |
-          git config user.name "Surge Bot"
-          git config user.email "bot@surge-predictor"
-          git add data/
-          git diff --staged --quiet || git commit -m "분석 업데이트 $(date +'%Y-%m-%d %H:%M')"
-          git pull --rebase origin main
-          git push
+          PREV=$(python summary_stat.py graded_count 0)
+          echo "prev_graded=${PREV}" >> "$GITHUB_OUTPUT"
+          echo "직전 등급부여 기업 수: ${PREV}"
+
+      - name: 기업 분석 실행
+        run: python analyzer.py
+        timeout-minutes: 30
+
+      - name: 데이터 회귀 가드
+        # 레이트리밋 등으로 수집이 실패한 빈약한 결과가
+        # 멀쩡한 직전 데이터를 덮어쓰는 것을 막는다.
+        run: |
+          PREV='${{ steps.before.outputs.prev_graded }}'
+          CURR=$(python summary_stat.py graded_count 0)
+          echo "등급부여 기업: ${PREV} -> ${CURR}"
+          if [ "${PREV}" -gt 0 ] && [ "${CURR}" -lt $(( PREV * 60 / 100 )) ]; then
+            echo "::error::등급부여 기업이 ${PREV}에서 ${CURR}로 40% 넘게 줄었습니다. API 수집 실패 가능성이 높아 발행을 중단합니다."
+            git checkout -- data/analysis.js
+            exit 1
+          fi
+
+      - name: 분석 결과 커밋
+        run: |
+          git config user.name "Quality Screener Bot"
+          git config user.email "bot@quality-screener.local"
+          git add data/analysis.js
+          if git diff --staged --quiet; then
+            echo "변경 사항 없음 — 커밋 생략"
+            exit 0
+          fi
+          git commit -m "분석 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # 네트워크/경쟁 푸시 실패에 대비한 재시도
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "푸시 성공 (시도 ${attempt})"
+              exit 0
+            fi
+            echo "푸시 실패 — 리베이스 후 재시도 (${attempt}/5)"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            sleep $(( 2 ** attempt ))
+          done
+          echo "::error::5회 시도 후에도 푸시 실패"
+          exit 1
+
+      - name: 배포 파일 수집
+        # Pages 에는 대시보드가 실제로 쓰는 파일만 올린다.
+        # 저장소 전체를 올리면 분석 스크립트와 캐시까지 공개 배포된다.
+        run: |
+          mkdir -p _site/data
+          cp index.html _site/
+          cp data/analysis.js _site/data/
+          echo "배포 용량: $(du -sh _site | cut -f1)"
 
       - name: Pages 설정
         uses: actions/configure-pages@v4
@@ -59,20 +113,8 @@ jobs:
       - name: 아티팩트 업로드
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Pages 배포
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: 실패 알림 (텔레그램)
-        if: failure()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          MSG="⚠️ 급등주 분석 워크플로우 실패%0A커밋: ${{ github.sha }}%0A링크: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d text="${MSG}" \
-            -d parse_mode="HTML" || true
