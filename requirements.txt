@@ -1,5 +1,7 @@
-yfinance>=0.2.30
-pandas>=2.0.0
-numpy>=1.24.0
-requests>=2.31.0
-lxml>=4.9.0
+# yfinance 는 파괴적 변경이 잦아 상한을 둔다.
+# 상한을 올릴 때는 analyzer.py 를 로컬에서 한 번 돌려 필드 변화를 확인할 것.
+yfinance>=0.2.40,<1.9
+pandas>=2.0.0,<3.0
+numpy>=1.24.0,<3.0
+requests>=2.31.0,<3.0
+lxml>=4.9.0,<6.0

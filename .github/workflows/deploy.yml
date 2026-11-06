@@ -1,5 +1,6 @@
-name: 대시보드 배포 (Pages)
+name: 대시보드만 배포 (Pages)
 
+# index.html 수정 시 분석 없이 화면만 다시 배포한다.
 on:
   push:
     branches: [main]
@@ -12,9 +13,11 @@ permissions:
   pages: write
   id-token: write
 
+# analyze.yml 과 같은 그룹을 쓴다. 그룹이 다르면 두 워크플로우가
+# 동시에 Pages 배포를 시도해 서로를 덮어쓴다.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -22,12 +25,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
+      - name: 배포 파일 수집
+        run: |
+          mkdir -p _site/data
+          cp index.html _site/
+          if [ -f data/analysis.js ]; then cp data/analysis.js _site/data/; fi
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
       - id: deployment
         uses: actions/deploy-pages@v4
