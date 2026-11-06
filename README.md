@@ -68,6 +68,7 @@ index.html                     대시보드
 data/analysis.js               분석 결과 (대시보드가 읽는 유일한 파일)
 .github/workflows/analyze.yml  매일 자동 분석 + 배포
 .github/workflows/deploy.yml   대시보드만 재배포
+.github/workflows/ci.yml       PR/푸시 시 테스트
 ```
 
 ## 실행
