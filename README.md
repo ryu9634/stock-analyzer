@@ -90,7 +90,7 @@ python test_scoring.py
 전체 스캔은 약 8~12분 걸립니다 (가격 데이터 + 재무 데이터 병렬 수집).
 `data/analysis.js` 가 생성되면 `index.html` 을 브라우저로 열면 됩니다.
 
-재무 데이터는 `data/.fundamentals_cache.json` 에 20시간 캐시됩니다. 이 파일은
+재무 데이터는 `data/.fundamentals_cache.json` 에 72시간 캐시됩니다. 이 파일은
 커밋되지 않으므로 로컬 반복 실행만 빨라지고 저장소는 비대해지지 않습니다.
 
 ## 설정
@@ -101,7 +101,7 @@ python test_scoring.py
 |---|---|---|
 | `MIN_PRICE` | `1.0` | 최소 주가 |
 | `MIN_DOLLAR_VOLUME` | `200_000` | 최소 일 거래대금 |
-| `INFO_WORKERS` | `14` | 재무 조회 동시 요청 수 |
+| `INFO_WORKERS` | `8` | 재무 조회 동시 요청 수 (스로틀 회피 상한) |
 | `MIN_COVERAGE` | `0.55` | 등급 부여 최소 데이터 커버리지 |
 | `FULL_DETAIL_TOP` | `400` | 상세 지표를 저장할 상위 기업 수 |
 | `CATEGORY_WEIGHTS` | — | 카테고리 비중 |
